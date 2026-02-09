@@ -5,6 +5,8 @@ from baseapp.models import BaseModel
 from datetime import datetime, timedelta
 from conf.settings import EMAIL_EXPIRATION_TIME, PHONE_EXPIRATION_TIME
 import random
+import uuid
+from rest_framework_simplejwt.tokens import RefreshToken
 # Create your models here.
 
 
@@ -40,6 +42,17 @@ class CustomUser(AbstractUser, BaseModel):
     def __str__(self):
         return self.username
     
+    def create_verify_code(self, verify_type):
+        code = "".join([str(random.randint(0, 9)) for _ in range(4)])
+        
+        CodeVerify.objects.create(
+            user=self,
+            verify_type=verify_type,
+            code=code
+        )
+        return code
+    
+    
     def create_code(self, verify_type):
         code = ''.join([str(random.randint(1000))[-1] for _ in range(4)])
         
@@ -51,23 +64,43 @@ class CustomUser(AbstractUser, BaseModel):
         return code
     
     def check_username(self):
-        pass
+        if not self.username:
+            temp_username = 'username' + uuid.uuid4().__str__().split('-')[-1]
+            while CustomUser.objects.filter(username=temp_username).exists():
+                temp_username = temp_username + str(random.randint(10))
+            self.username = temp_username         
+            
     def check_email(self):
-        pass
+        if self.email:
+            self.email = self.email.lower()    
         
     def check_pass(self):
-        pass
+        if not self.password:
+            temp_pass = 'password' + uuid.uuid4().__str__().split('-')[-1]
+            self.password = temp_pass
             
     def hash_pass(self):
-        pass
+        if not self.password.startswith("pbkdf2_sha256"):
+            self.set_password(self.password)
+    
     def token(self):
-        pass
+        refresh = RefreshToken.for_user(self)
+        data = {
+            'refresh' : str(refresh),
+            'access': str(refresh.access_token)
+        }
+        return data
     
     def clean(self):
-        pass
+        self.check_email()
+        self.check_username()
+        self.check_pass()
+        self.hash_pass()
     
     def save(self, *args, **kwargs):
-      pass
+        
+        self.clean()
+        super(CustomUser, self).save(*args, **kwargs)
         
     
 class CodeVerify(BaseModel):
@@ -84,4 +117,9 @@ class CodeVerify(BaseModel):
     def __str__(self):
         return f"{self.user.username} | {self.code}"
     
-    
+    def save(self, *args, **kwargs):
+        if self.verify_type == VIA_EMAIL:
+            self.expiration_time = datetime.now() + timedelta(minutes=EMAIL_EXPIRATION_TIME)
+        else:
+            self.expiration_time = datetime.now() + timedelta(minutes=PHONE_EXPIRATION_TIME)
+        super().save(*args, **kwargs)
