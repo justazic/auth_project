@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import FileExtensionValidator
 from baseapp.models import BaseModel
@@ -54,7 +55,7 @@ class CustomUser(AbstractUser, BaseModel):
     
     
     def create_code(self, verify_type):
-        code = ''.join([str(random.randint(1000))[-1] for _ in range(4)])
+        code = ''.join([str(random.randint( 1000))[-1] for _ in range(4)])
         
         CodeVerify.objects.create(
             user=self,
@@ -119,7 +120,7 @@ class CodeVerify(BaseModel):
     
     def save(self, *args, **kwargs):
         if self.verify_type == VIA_EMAIL:
-            self.expiration_time = datetime.now() + timedelta(minutes=EMAIL_EXPIRATION_TIME)
+            self.expiration_time = timezone.now() + timedelta(minutes=EMAIL_EXPIRATION_TIME)
         else:
-            self.expiration_time = datetime.now() + timedelta(minutes=PHONE_EXPIRATION_TIME)
+            self.expiration_time = timezone.now() + timedelta(minutes=PHONE_EXPIRATION_TIME)
         super().save(*args, **kwargs)
